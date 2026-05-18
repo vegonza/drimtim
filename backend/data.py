@@ -71,7 +71,6 @@ def row_to_dict(row) -> dict:
         "horarios": row.get("horarios", "") if str(row.get("horarios", "")) != "nan" else "",
         "acceso_pmr": bool(row["acceso_pmr"]),
         "telefono": str(int(row["tlfcontacto"])) if pd.notna(row.get("tlfcontacto")) and str(row.get("tlfcontacto")) != "nan" else "",
-        "email": row.get("email", "") if str(row.get("email", "")) != "nan" else "",
     }
 
 
