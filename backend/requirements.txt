@@ -3,3 +3,4 @@ uvicorn>=0.46,<1
 gunicorn>=25,<26
 python-dotenv>=1.2,<2
 httpx>=0.28,<1
+pandas>=2.2,<4
