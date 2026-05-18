@@ -6,6 +6,7 @@ import math
 import os
 import re
 import unicodedata
+import urllib.request
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -16,6 +17,10 @@ from typing import Iterable
 DATASET_DIR = Path(os.environ.get("DATASETS_DIR", Path(__file__).resolve().parents[1] / "backend" / "datasets"))
 
 LOCATION_FILE = "desfibriladores_localizacion.csv"
+LOCATION_DATASET_URL = (
+    "https://datosabiertos.malaga.eu/dataset/a455c822-e695-4fc4-abc9-b18f50a59a3a/"
+    "resource/3e5b55ca-326e-4ede-9f98-f7ddb87e47c4/download/da_desfibriladores-4326.csv"
+)
 INCIDENTS_FILE = "139_view_report_uc12_incidents_log.csv"
 OPERATIONAL_FILE = "140_view_report_uc12_operational_defibrillators.csv"
 RESOLUTION_FILE = "141_view_report_uc12_tech_issue_resolution_time.csv"
@@ -307,6 +312,17 @@ def write_scores(rows: Iterable[dict[str, str]], output_path: Path) -> None:
         writer.writerows(rows)
 
 
+def download_location_file(datasets_dir: Path, source_url: str = LOCATION_DATASET_URL) -> Path:
+    location_path = datasets_dir / LOCATION_FILE
+    location_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with urllib.request.urlopen(source_url, timeout=30) as response:
+        content = response.read()
+
+    location_path.write_bytes(content)
+    return location_path
+
+
 def enrich_location_file(datasets_dir: Path, scored_rows: Iterable[dict[str, str]]) -> None:
     location_path = datasets_dir / LOCATION_FILE
     scores = {
@@ -369,7 +385,16 @@ def main() -> None:
         action="store_true",
         help="Append/update fiabilidad_pct in desfibriladores_localizacion.csv.",
     )
+    parser.add_argument(
+        "--download-location",
+        action="store_true",
+        help="Download the official Malaga AED dataset as desfibriladores_localizacion.csv before scoring.",
+    )
     args = parser.parse_args()
+
+    if args.download_location:
+        location_path = download_location_file(args.datasets_dir)
+        print(f"Downloaded: {location_path}")
 
     rows = score_defibrillators(args.datasets_dir)
     if args.output:
