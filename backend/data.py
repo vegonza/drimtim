@@ -7,6 +7,9 @@ import pandas as pd
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets")
 
+SPEED_MS = 6 * 1000 / 3600  # 6 km/h → 1.67 m/s (brisk walk, accessible to everyone)
+MAX_ROUND_TRIP_S = 180  # 3 minutes total (go + return with AED)
+
 
 def _parse_geometry(geom: str) -> tuple[float, float] | None:
     m = re.search(r"POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)", str(geom))
