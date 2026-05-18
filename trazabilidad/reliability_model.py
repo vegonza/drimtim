@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-DATASET_DIR = Path(os.environ.get("DATASETS_DIR", Path(__file__).resolve().parent / "datasets"))
+DATASET_DIR = Path(os.environ.get("DATASETS_DIR", Path(__file__).resolve().parents[1] / "backend" / "datasets"))
 
 LOCATION_FILE = "desfibriladores_localizacion.csv"
 INCIDENTS_FILE = "139_view_report_uc12_incidents_log.csv"

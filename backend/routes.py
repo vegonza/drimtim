@@ -1,10 +1,18 @@
 import os
+from dataclasses import asdict
 from datetime import time
+from functools import lru_cache
 
 import httpx
 from fastapi import APIRouter, Query
 
 from data import DF, haversine, is_available_at, row_to_dict, SPEED_MS, MAX_ROUND_TRIP_S
+from recommendation_model import (
+    Defibrillator,
+    load_defibrillators,
+    parse_moment,
+    recommend_defibrillators,
+)
 
 ORS_KEY = os.environ.get(
     "ORS_API_KEY",
@@ -16,6 +24,11 @@ ORS_DIRECTIONS_URL = "https://api.openrouteservice.org/v2/directions/foot-walkin
 STREET_FACTOR = 1.3
 
 router = APIRouter(prefix="/api")
+
+
+@lru_cache(maxsize=1)
+def defibrillators() -> tuple[Defibrillator, ...]:
+    return tuple(load_defibrillators())
 
 
 async def _ors_matrix(origin: tuple[float, float], destinations: list[tuple[float, float]]) -> list[dict] | None:
@@ -162,3 +175,20 @@ async def nearest(
         "count": len(results),
         "results": results,
     }
+
+
+@router.get("/defibrillators/recommend")
+def recommend_defibrillator(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    at: str | None = None,
+    limit: int = Query(5, ge=1, le=20),
+):
+    recommendations = recommend_defibrillators(
+        origin_lat=lat,
+        origin_lon=lon,
+        moment=parse_moment(at),
+        limit=limit,
+        defibrillators=list(defibrillators()),
+    )
+    return [asdict(item) for item in recommendations]
