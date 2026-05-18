@@ -13,8 +13,8 @@ services:
     environment:
       - ENV=production
       - FORCE_COLOR=1
-      - CORS_ORIGINS=https://drimtim.es
-      - FRONTEND_URL=https://drimtim.es
+      - CORS_ORIGINS=https://edint.cloverai.es
+      - FRONTEND_URL=https://edint.cloverai.es
     volumes:
       - backend_logs:/app/logs
     networks:
@@ -43,7 +43,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=edge"
-      - "traefik.http.routers.drimtim.rule=Host(`drimtim.es`)"
+      - "traefik.http.routers.drimtim.rule=Host(`edint.cloverai.es`)"
       - "traefik.http.routers.drimtim.entrypoints=websecure"
       - "traefik.http.routers.drimtim.tls=true"
       - "traefik.http.routers.drimtim.tls.certresolver=letsencrypt"
