@@ -26,9 +26,6 @@ def haversine(lat1, lon1, lat2, lon2) -> float:
     return R * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 
-_TIME_RE = re.compile(r"(\d{1,2})(?:[.:h](\d{2}))?")
-
-
 def _parse_time_ranges(horario: str) -> list[tuple[time, time]]:
     """Extract (start, end) time pairs from a schedule string."""
     ranges = []

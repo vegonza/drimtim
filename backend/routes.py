@@ -1,3 +1,4 @@
+import asyncio
 import os
 from dataclasses import asdict
 from datetime import time
@@ -203,8 +204,9 @@ async def nearest(
     results.sort(key=lambda r: r["distance_m"])
     results = results[:limit]
 
-    for r in results:
-        route_geom = await _ors_route((lat, lon), (r["lat"], r["lon"]))
+    route_tasks = [_ors_route((lat, lon), (r["lat"], r["lon"])) for r in results]
+    routes = await asyncio.gather(*route_tasks)
+    for r, route_geom in zip(results, routes):
         r["route"] = route_geom
 
     return {
