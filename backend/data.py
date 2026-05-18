@@ -75,6 +75,7 @@ def _s(value) -> str:
 
 
 def row_to_dict(row) -> dict:
+    fiabilidad = row.get("fiabilidad_pct")
     return {
         "id": _s(row.get("nombre")),
         "descripcion": _s(row.get("descripcion")),
@@ -88,6 +89,7 @@ def row_to_dict(row) -> dict:
         "telefono": str(int(row["tlfcontacto"]))
         if pd.notna(row.get("tlfcontacto")) and str(row.get("tlfcontacto")) != "nan"
         else "",
+        "fiabilidad_pct": int(fiabilidad) if pd.notna(fiabilidad) else None,
     }
 
 
