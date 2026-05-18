@@ -1,0 +1,62 @@
+services:
+  backend:
+    build: ./backend
+    container_name: drimtim_backend
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file:
+      - backend/.env
+    environment:
+      - ENV=production
+      - FORCE_COLOR=1
+      - CORS_ORIGINS=https://drimtim.es
+      - FRONTEND_URL=https://drimtim.es
+    volumes:
+      - backend_logs:/app/logs
+    networks:
+      - drimtim_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: drimtim_frontend
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - FORCE_COLOR=1
+    volumes:
+      - frontend_logs:/var/log/nginx
+    depends_on:
+      - backend
+    networks:
+      - drimtim_network
+      - edge
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=edge"
+      - "traefik.http.routers.drimtim.rule=Host(`drimtim.es`)"
+      - "traefik.http.routers.drimtim.entrypoints=websecure"
+      - "traefik.http.routers.drimtim.tls=true"
+      - "traefik.http.routers.drimtim.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.drimtim.middlewares=security-headers@docker,drimtim-compress"
+      - "traefik.http.middlewares.drimtim-compress.compress=true"
+      - "traefik.http.services.drimtim.loadbalancer.server.port=80"
+
+networks:
+  drimtim_network:
+    driver: bridge
+  edge:
+    external: true
+
+volumes:
+  backend_logs:
+  frontend_logs:

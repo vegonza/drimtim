@@ -1,2 +1,11 @@
+node_modules/
+dist/
+.DS_Store
 .env
+.venv/
+__pycache__/
+*.pyc
+*.log
+logs/
 *.key
+CentesimalHackathon/
