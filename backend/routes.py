@@ -6,9 +6,11 @@ from functools import lru_cache
 import httpx
 from fastapi import APIRouter, Query
 
-from data import DF, haversine, is_available_at, row_to_dict, SPEED_MS, MAX_ROUND_TRIP_S
+from data import DF, MAX_ROUND_TRIP_S, SPEED_MS, haversine, is_available_at, row_to_dict
 from recommendation_model import (
     Defibrillator,
+    MAX_BACKUP_CANDIDATES,
+    TravelMetric,
     load_defibrillators,
     parse_moment,
     recommend_defibrillators,
@@ -74,6 +76,35 @@ async def _ors_route(origin: tuple[float, float], dest: tuple[float, float]) -> 
         return None
 
 
+async def _travel_metrics(
+    origin: tuple[float, float],
+    candidates: list[Defibrillator],
+) -> dict[str, TravelMetric]:
+    destinations = [(candidate.lat, candidate.lon) for candidate in candidates]
+    ors_results = await _ors_matrix(origin, destinations) if destinations else None
+
+    metrics: dict[str, TravelMetric] = {}
+    for index, candidate in enumerate(candidates):
+        straight_dist = haversine(origin[0], origin[1], candidate.lat, candidate.lon)
+        if (
+            ors_results
+            and ors_results[index]["distance_m"] is not None
+            and ors_results[index]["duration_s"] is not None
+        ):
+            walk_dist = ors_results[index]["distance_m"]
+            one_way_s = ors_results[index]["duration_s"]
+        else:
+            walk_dist = straight_dist * STREET_FACTOR
+            one_way_s = walk_dist / SPEED_MS
+
+        metrics[candidate.aed_id] = TravelMetric(
+            distance_m=walk_dist,
+            one_way_seconds=one_way_s,
+            round_trip_seconds=one_way_s * 2,
+        )
+
+    return metrics
+
 
 @router.get("/geojson")
 def geojson(
@@ -92,11 +123,13 @@ def geojson(
             props["available"] = is_available_at(row, check_time)
         if include_distance:
             props["distance_m"] = round(haversine(lat, lon, row["lat"], row["lon"]) * STREET_FACTOR, 1)
-        features.append({
-            "type": "Feature",
-            "geometry": {"type": "Point", "coordinates": [row["lon"], row["lat"]]},
-            "properties": props,
-        })
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [row["lon"], row["lat"]]},
+                "properties": props,
+            }
+        )
 
     if include_distance:
         features.sort(key=lambda f: f["properties"]["distance_m"])
@@ -126,7 +159,7 @@ async def nearest(
         candidates.append((straight_dist, row))
 
     candidates.sort(key=lambda c: c[0])
-    candidates = candidates[:limit * 3]
+    candidates = candidates[: limit * 3]
 
     if not candidates:
         return {
@@ -143,7 +176,11 @@ async def nearest(
 
     results = []
     for i, (straight_dist, row) in enumerate(candidates):
-        if ors_results and ors_results[i]["distance_m"] is not None:
+        if (
+            ors_results
+            and ors_results[i]["distance_m"] is not None
+            and ors_results[i]["duration_s"] is not None
+        ):
             walk_dist = ors_results[i]["distance_m"]
             walk_time = ors_results[i]["duration_s"]
         else:
@@ -154,12 +191,14 @@ async def nearest(
         if round_trip_s > MAX_ROUND_TRIP_S:
             continue
 
-        results.append({
-            **row_to_dict(row),
-            "distance_m": round(walk_dist, 1),
-            "one_way_s": round(walk_time, 1),
-            "round_trip_s": round(round_trip_s, 1),
-        })
+        results.append(
+            {
+                **row_to_dict(row),
+                "distance_m": round(walk_dist, 1),
+                "one_way_s": round(walk_time, 1),
+                "round_trip_s": round(round_trip_s, 1),
+            }
+        )
 
     results.sort(key=lambda r: r["distance_m"])
     results = results[:limit]
@@ -179,17 +218,37 @@ async def nearest(
 
 
 @router.get("/defibrillators/recommend")
-def recommend_defibrillator(
+async def recommend_defibrillator(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
     at: str | None = None,
     limit: int = Query(5, ge=1, le=20),
 ):
+    moment = parse_moment(at)
+    check_time = moment.time() if moment else None
+    open_ids = None
+    if check_time is not None:
+        open_ids = {
+            row["nombre"]
+            for _, row in DF.iterrows()
+            if is_available_at(row, check_time)
+        }
+
+    candidates = [
+        candidate
+        for candidate in defibrillators()
+        if open_ids is None or candidate.aed_id in open_ids
+    ]
+    candidates.sort(key=lambda item: haversine(lat, lon, item.lat, item.lon))
+    candidates = candidates[:MAX_BACKUP_CANDIDATES]
+    travel_metrics = await _travel_metrics((lat, lon), candidates)
+
     recommendations = recommend_defibrillators(
         origin_lat=lat,
         origin_lon=lon,
-        moment=parse_moment(at),
+        moment=moment,
         limit=limit,
-        defibrillators=list(defibrillators()),
+        defibrillators=candidates,
+        travel_metrics=travel_metrics,
     )
     return [asdict(item) for item in recommendations]

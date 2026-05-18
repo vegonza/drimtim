@@ -20,8 +20,6 @@ INCIDENTS_FILE = "139_view_report_uc12_incidents_log.csv"
 OPERATIONAL_FILE = "140_view_report_uc12_operational_defibrillators.csv"
 RESOLUTION_FILE = "141_view_report_uc12_tech_issue_resolution_time.csv"
 
-POINT_RE = re.compile(r"POINT \((-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)\)")
-
 # The public Malaga dataset identifies AEDs as DEA_*, while Centesimal uses
 # building names and AF1 device ids. This audited bridge links rows that are
 # clearly the same Centesimal AED in both sources.
@@ -129,31 +127,6 @@ def logit(probability: float) -> float:
 
 def clamp(value: float, lower: float = 0.01, upper: float = 0.99) -> float:
     return max(lower, min(upper, value))
-
-
-def parse_point(wkb_geometry: str) -> tuple[float | None, float | None, bool]:
-    match = POINT_RE.fullmatch(wkb_geometry or "")
-    if not match:
-        return None, None, False
-
-    lon = float(match.group(1))
-    lat = float(match.group(2))
-    coordinate_valid = -5.0 < lon < -3.0 and 36.0 < lat < 37.0
-    return lon, lat, coordinate_valid
-
-
-def infer_accessibility_probability(row: dict[str, str]) -> float:
-    if (row.get("VEINTICUATROHORAS") or "").strip().lower() == "si":
-        return 0.99
-
-    titularidad = (row.get("titularidad") or "").strip().upper()
-    horarios = (row.get("horarios") or "").strip()
-
-    if titularidad == "EMT":
-        return 0.86
-    if horarios:
-        return 0.88
-    return 0.78
 
 
 def risk_level(probability: float) -> str:
@@ -270,9 +243,6 @@ def technical_probability(item: Telemetry | None) -> tuple[float, str]:
     if item.latest_operational == 0:
         risk += 1.10
 
-    if item.avg_resolution_hours is not None:
-        risk += min(0.50, item.avg_resolution_hours / 96.0)
-
     probability = sigmoid(logit(base_probability) - risk)
     return clamp(probability), "telemetria_centesimal"
 
@@ -288,10 +258,7 @@ def score_defibrillators(datasets_dir: Path = DATASET_DIR) -> list[dict[str, str
         telemetry_item = telemetry.get(normalize_key(building)) if building else None
 
         tech_probability, telemetry_status = technical_probability(telemetry_item)
-        access_probability = infer_accessibility_probability(location)
-        lon, lat, coordinate_valid = parse_point(location.get("wkb_geometry", ""))
-        coordinate_factor = 1.0 if coordinate_valid else 0.55
-        reliability_probability = clamp(tech_probability * access_probability * coordinate_factor)
+        reliability_probability = tech_probability
 
         rows.append(
             {
@@ -299,15 +266,9 @@ def score_defibrillators(datasets_dir: Path = DATASET_DIR) -> list[dict[str, str
                 "descripcion": location.get("descripcion", ""),
                 "direccion": location.get("direccion", ""),
                 "titularidad": location.get("titularidad", ""),
-                "veinticuatro_horas": location.get("VEINTICUATROHORAS", ""),
-                "horarios": location.get("horarios", ""),
-                "longitude": "" if lon is None else f"{lon:.8f}",
-                "latitude": "" if lat is None else f"{lat:.8f}",
-                "coordinate_valid": str(coordinate_valid),
                 "centesimal_building": building,
                 "centesimal_device": telemetry_item.device_name if telemetry_item else "",
                 "technical_probability": f"{tech_probability:.4f}",
-                "accessibility_probability": f"{access_probability:.4f}",
                 "reliability_probability": f"{reliability_probability:.4f}",
                 "reliability_score": str(round(reliability_probability * 100)),
                 "reliability_level": risk_level(reliability_probability),
