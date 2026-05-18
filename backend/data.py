@@ -26,6 +26,37 @@ def haversine(lat1, lon1, lat2, lon2) -> float:
     return R * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 
+_TIME_RE = re.compile(r"(\d{1,2})(?:[.:h](\d{2}))?")
+
+
+def _parse_time_ranges(horario: str) -> list[tuple[time, time]]:
+    """Extract (start, end) time pairs from a schedule string."""
+    ranges = []
+    # Match patterns like "06:00...02:00", "8 a 20", "08:00-22:00", "7.00 A 18.00"
+    # Strategy: find all HH:MM or bare-hour tokens, then pair them up using
+    # connectors (a, -, –, hasta) between them
+    pattern = re.compile(
+        r"(\d{1,2})(?:[.:h](\d{2}))?"
+        r"\s*(?:h\.?\s*)?(?:de la \w+)?\s*"
+        r"(?:a|-+|–|hasta)\s*"
+        r"(\d{1,2})(?:[.:h](\d{2}))?",
+        re.IGNORECASE,
+    )
+    for m in pattern.finditer(horario):
+        sh, sm, eh, em = m.groups()
+        try:
+            start_h = int(sh)
+            end_h = int(eh)
+            if start_h > 23 or end_h > 23:
+                continue
+            start = time(start_h, int(sm) if sm else 0)
+            end = time(end_h, int(em) if em else 0)
+            ranges.append((start, end))
+        except ValueError:
+            continue
+    return ranges
+
+
 def is_available_at(row, check_time: time) -> bool:
     if row["disponible_24h"]:
         return True
@@ -35,18 +66,21 @@ def is_available_at(row, check_time: time) -> bool:
     h = horario.strip().upper()
     if "24" in h and ("H" in h or "HORA" in h):
         return True
-    time_ranges = re.findall(
-        r"(\d{1,2})[.:h](\d{2})?\s*(?:[Aa]|[-–])\s*(\d{1,2})[.:h](\d{2})?",
-        horario,
-    )
-    for sh, sm, eh, em in time_ranges:
-        try:
-            start = time(int(sh), int(sm) if sm else 0)
-            end = time(int(eh), int(em) if em else 0)
+    if "ININTERRUMPIDO" in h:
+        return True
+
+    ranges = _parse_time_ranges(horario)
+    if not ranges:
+        return False
+
+    for start, end in ranges:
+        if start <= end:
             if start <= check_time <= end:
                 return True
-        except ValueError:
-            continue
+        else:
+            # Crosses midnight (e.g. 06:00 a 02:00)
+            if check_time >= start or check_time <= end:
+                return True
     return False
 
 
