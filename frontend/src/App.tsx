@@ -236,7 +236,7 @@ export function App() {
     return (
       <div className="fixed inset-0 flex flex-col bg-background text-foreground antialiased">
         <div className="relative flex-1">
-          <MapView coords={effectiveCoords} aeds={aeds} selectedIdx={selectedIdx} fill />
+          <MapView coords={effectiveCoords} aeds={aeds} selectedIdx={selectedIdx} onSelect={setSelectedIdx} fill />
         </div>
         <div className="max-h-[42vh] overflow-y-auto px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <List
@@ -490,12 +490,14 @@ function MapView({
   aeds,
   zones,
   selectedIdx = 0,
+  onSelect,
   fill = false,
 }: {
   coords: Coords | null
   aeds: Defibrillator[] | null
   zones?: { id: string; name: string; lat: number; lng: number; radius_m: number }[]
   selectedIdx?: number
+  onSelect?: (idx: number) => void
   fill?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -585,7 +587,8 @@ function MapView({
           iconSize: [28, 28],
           iconAnchor: [14, 14],
         })
-        L.marker([a.lat, a.lng], { icon }).addTo(layer)
+        const marker = L.marker([a.lat, a.lng], { icon }).addTo(layer)
+        marker.on('click', () => onSelect?.(i))
         points.push([a.lat, a.lng])
       })
 
