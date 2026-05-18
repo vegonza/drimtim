@@ -17,10 +17,7 @@ from recommendation_model import (
     recommend_defibrillators,
 )
 
-ORS_KEY = os.environ.get(
-    "ORS_API_KEY",
-    "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImZkYjlkMzg5ZTBjMjRmNzQ5ZmUxNjk5YjM5MjhiYzA5IiwiaCI6Im11cm11cjY0In0=",
-)
+ORS_KEY = os.environ.get("ORS_API_KEY", "")
 ORS_MATRIX_URL = "https://api.openrouteservice.org/v2/matrix/foot-walking"
 ORS_DIRECTIONS_URL = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson"
 
