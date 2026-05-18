@@ -22,6 +22,7 @@ services:
     image: drimtim-frontend-dev
     container_name: drimtim-frontend-dev
     ports:
+      - "80:5173"
       - "5173:5173"
     environment:
       - VITE_API_URL=http://backend:8000

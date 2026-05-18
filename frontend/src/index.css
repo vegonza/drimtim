@@ -33,48 +33,48 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --radius: 0.875rem;
+  --background: oklch(0.99 0.005 20);
+  --foreground: oklch(0.18 0.02 20);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.18 0.02 20);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.546 0.245 262.88);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.18 0.02 20);
+  --primary: oklch(0.58 0.22 25);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.97 0.01 20);
+  --secondary-foreground: oklch(0.2 0.02 20);
+  --muted: oklch(0.96 0.01 20);
+  --muted-foreground: oklch(0.5 0.02 20);
+  --accent: oklch(0.95 0.02 25);
+  --accent-foreground: oklch(0.2 0.02 20);
+  --destructive: oklch(0.58 0.24 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.92 0.01 20);
+  --input: oklch(0.92 0.01 20);
+  --ring: oklch(0.58 0.22 25);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.546 0.245 262.88);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
+  --background: oklch(0.15 0.02 20);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.21 0.02 20);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.21 0.02 20);
+  --popover-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.65 0.23 25);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.27 0.02 20);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.27 0.02 20);
+  --muted-foreground: oklch(0.7 0.02 20);
+  --accent: oklch(0.3 0.05 25);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.65 0.24 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.27 0.02 20);
+  --input: oklch(0.27 0.02 20);
+  --ring: oklch(0.65 0.23 25);
 }
 
 @layer base {
@@ -89,5 +89,94 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* ===== Latidos: heart + ECG animations ===== */
+
+@keyframes latidos-pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  80% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes latidos-heartbeat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  12% {
+    transform: scale(1.08);
+  }
+  24% {
+    transform: scale(0.98);
+  }
+  36% {
+    transform: scale(1.12);
+  }
+  48% {
+    transform: scale(1);
+  }
+}
+
+@keyframes latidos-ecg-draw {
+  0% {
+    stroke-dashoffset: 600;
+  }
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -600;
+  }
+}
+
+.latidos-ring {
+  animation: latidos-pulse-ring 1.6s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+}
+
+.latidos-ring-delay {
+  animation-delay: 0.8s;
+}
+
+.latidos-heart {
+  animation: latidos-heartbeat 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.latidos-ecg-path {
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: latidos-ecg-draw 2.4s linear infinite;
+}
+
+.latidos-stopped .latidos-ring,
+.latidos-stopped .latidos-heart,
+.latidos-stopped .latidos-ecg-path {
+  animation: none !important;
+}
+
+.latidos-stopped .latidos-ring {
+  opacity: 0;
+}
+
+.latidos-stopped .latidos-ecg-path {
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .latidos-ring,
+  .latidos-heart,
+  .latidos-ecg-path {
+    animation: none !important;
   }
 }
