@@ -1,20 +1,20 @@
 import asyncio
 import os
-from dataclasses import asdict
 from datetime import time
-from functools import lru_cache
 
 import httpx
 from fastapi import APIRouter, Query
 
 from data import DF, MAX_ROUND_TRIP_S, SPEED_MS, haversine, is_available_at, row_to_dict
 from recommendation_model import (
+    DISTANCE_WEIGHT,
+    RELIABILITY_WEIGHT,
+    BACKUP_WEIGHT,
+    SURVIVAL_DECAY_PER_MINUTE,
+    access_delay_minutes,
     Defibrillator,
-    MAX_BACKUP_CANDIDATES,
-    TravelMetric,
     load_defibrillators,
-    parse_moment,
-    recommend_defibrillators,
+    route_distance_m,
 )
 
 ORS_KEY = os.environ.get("ORS_API_KEY", "")
@@ -25,10 +25,14 @@ STREET_FACTOR = 1.3
 
 router = APIRouter(prefix="/api")
 
+_DEFIBRILLATOR_CACHE: dict[str, Defibrillator] = {}
 
-@lru_cache(maxsize=1)
-def defibrillators() -> tuple[Defibrillator, ...]:
-    return tuple(load_defibrillators())
+
+def _get_defibrillator(aed_id: str) -> Defibrillator | None:
+    if not _DEFIBRILLATOR_CACHE:
+        for d in load_defibrillators():
+            _DEFIBRILLATOR_CACHE[d.aed_id] = d
+    return _DEFIBRILLATOR_CACHE.get(aed_id)
 
 
 async def _ors_matrix(origin: tuple[float, float], destinations: list[tuple[float, float]]) -> list[dict] | None:
@@ -74,35 +78,6 @@ async def _ors_route(origin: tuple[float, float], dest: tuple[float, float]) -> 
         return None
 
 
-async def _travel_metrics(
-    origin: tuple[float, float],
-    candidates: list[Defibrillator],
-) -> dict[str, TravelMetric]:
-    destinations = [(candidate.lat, candidate.lon) for candidate in candidates]
-    ors_results = await _ors_matrix(origin, destinations) if destinations else None
-
-    metrics: dict[str, TravelMetric] = {}
-    for index, candidate in enumerate(candidates):
-        straight_dist = haversine(origin[0], origin[1], candidate.lat, candidate.lon)
-        if (
-            ors_results
-            and ors_results[index]["distance_m"] is not None
-            and ors_results[index]["duration_s"] is not None
-        ):
-            walk_dist = ors_results[index]["distance_m"]
-            one_way_s = ors_results[index]["duration_s"]
-        else:
-            walk_dist = straight_dist * STREET_FACTOR
-            one_way_s = walk_dist / SPEED_MS
-
-        metrics[candidate.aed_id] = TravelMetric(
-            distance_m=walk_dist,
-            one_way_seconds=one_way_s,
-            round_trip_seconds=one_way_s * 2,
-        )
-
-    return metrics
-
 
 @router.get("/geojson")
 def geojson(
@@ -133,6 +108,44 @@ def geojson(
         features.sort(key=lambda f: f["properties"]["distance_m"])
 
     return {"type": "FeatureCollection", "features": features}
+
+
+def _compute_scores(results: list[dict], lat: float, lon: float) -> None:
+    """Add recommendation_score to each result, considering reliability and backup."""
+    for i, r in enumerate(results):
+        dea = _get_defibrillator(r["id"])
+        fiab = (r.get("fiabilidad_pct") or 80) / 100.0
+
+        delay_min = access_delay_minutes(dea) if dea else 0.5
+        retrieval_min = r["round_trip_s"] / 60.0 + delay_min
+        distance_score = SURVIVAL_DECAY_PER_MINUTE ** retrieval_min
+
+        # Best backup: another result that could be reached if this one fails
+        backup_score = 0.0
+        backup_id = None
+        for j, other in enumerate(results):
+            if j == i:
+                continue
+            other_fiab = (other.get("fiabilidad_pct") or 80) / 100.0
+            primary_to_backup = route_distance_m(r["lat"], r["lon"], other["lat"], other["lon"])
+            backup_to_patient = route_distance_m(other["lat"], other["lon"], lat, lon)
+            fallback_dist = r["distance_m"] + primary_to_backup + backup_to_patient
+            fallback_min = fallback_dist / SPEED_MS / 60.0 + delay_min * 2
+            value = other_fiab * (SURVIVAL_DECAY_PER_MINUTE ** fallback_min)
+            if value > backup_score:
+                backup_score = value
+                backup_id = other["id"]
+
+        final = (
+            DISTANCE_WEIGHT * distance_score
+            + RELIABILITY_WEIGHT * fiab
+            + BACKUP_WEIGHT * backup_score
+        )
+        r["distance_score"] = round(distance_score, 4)
+        r["reliability_score"] = round(fiab, 4)
+        r["backup_score"] = round(backup_score, 4)
+        r["backup_id"] = backup_id
+        r["recommendation_score"] = round(final * 100, 2)
 
 
 @router.get("/nearest")
@@ -198,7 +211,8 @@ async def nearest(
             }
         )
 
-    results.sort(key=lambda r: r["distance_m"])
+    _compute_scores(results, lat, lon)
+    results.sort(key=lambda r: r["recommendation_score"], reverse=True)
     results = results[:limit]
 
     route_tasks = [_ors_route((lat, lon), (r["lat"], r["lon"])) for r in results]
@@ -214,40 +228,3 @@ async def nearest(
         "count": len(results),
         "results": results,
     }
-
-
-@router.get("/defibrillators/recommend")
-async def recommend_defibrillator(
-    lat: float = Query(..., ge=-90, le=90),
-    lon: float = Query(..., ge=-180, le=180),
-    at: str | None = None,
-    limit: int = Query(5, ge=1, le=20),
-):
-    moment = parse_moment(at)
-    check_time = moment.time() if moment else None
-    open_ids = None
-    if check_time is not None:
-        open_ids = {
-            row["nombre"]
-            for _, row in DF.iterrows()
-            if is_available_at(row, check_time)
-        }
-
-    candidates = [
-        candidate
-        for candidate in defibrillators()
-        if open_ids is None or candidate.aed_id in open_ids
-    ]
-    candidates.sort(key=lambda item: haversine(lat, lon, item.lat, item.lon))
-    candidates = candidates[:MAX_BACKUP_CANDIDATES]
-    travel_metrics = await _travel_metrics((lat, lon), candidates)
-
-    recommendations = recommend_defibrillators(
-        origin_lat=lat,
-        origin_lon=lon,
-        moment=moment,
-        limit=limit,
-        defibrillators=candidates,
-        travel_metrics=travel_metrics,
-    )
-    return [asdict(item) for item in recommendations]
