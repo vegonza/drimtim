@@ -11,6 +11,7 @@ ORS_KEY = os.environ.get(
     "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImZkYjlkMzg5ZTBjMjRmNzQ5ZmUxNjk5YjM5MjhiYzA5IiwiaCI6Im11cm11cjY0In0=",
 )
 ORS_MATRIX_URL = "https://api.openrouteservice.org/v2/matrix/foot-walking"
+ORS_DIRECTIONS_URL = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson"
 
 STREET_FACTOR = 1.3
 
@@ -38,6 +39,24 @@ async def _ors_matrix(origin: tuple[float, float], destinations: list[tuple[floa
             distances = data["distances"][0]
             durations = data["durations"][0]
             return [{"distance_m": d, "duration_s": t} for d, t in zip(distances, durations)]
+    except Exception:
+        return None
+
+
+async def _ors_route(origin: tuple[float, float], dest: tuple[float, float]) -> dict | None:
+    """Get walking route geometry from ORS directions endpoint."""
+    body = {"coordinates": [[origin[1], origin[0]], [dest[1], dest[0]]]}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                ORS_DIRECTIONS_URL,
+                json=body,
+                headers={"Authorization": ORS_KEY, "Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            feature = data["features"][0]
+            return feature["geometry"]
     except Exception:
         return None
 
@@ -130,6 +149,10 @@ async def nearest(
 
     results.sort(key=lambda r: r["distance_m"])
     results = results[:limit]
+
+    for r in results:
+        route_geom = await _ors_route((lat, lon), (r["lat"], r["lon"]))
+        r["route"] = route_geom
 
     return {
         "origin": {"lat": lat, "lon": lon},
