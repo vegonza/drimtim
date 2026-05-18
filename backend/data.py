@@ -62,18 +62,32 @@ def load_locations() -> pd.DataFrame:
     return df
 
 
+def _s(value) -> str:
+    """Return a clean string, mapping NaN/None/'nan' to ''."""
+    if value is None:
+        return ""
+    if isinstance(value, float) and pd.isna(value):
+        return ""
+    s = str(value)
+    if s.lower() == "nan":
+        return ""
+    return s
+
+
 def row_to_dict(row) -> dict:
     return {
-        "id": row.get("nombre", ""),
-        "descripcion": row.get("descripcion", ""),
-        "direccion": row.get("direccion", ""),
+        "id": _s(row.get("nombre")),
+        "descripcion": _s(row.get("descripcion")),
+        "direccion": _s(row.get("direccion")),
         "lat": row["lat"],
         "lon": row["lon"],
         "disponible_24h": bool(row["disponible_24h"]),
-        "titularidad": row.get("titularidad", ""),
-        "horarios": row.get("horarios", "") if str(row.get("horarios", "")) != "nan" else "",
+        "titularidad": _s(row.get("titularidad")),
+        "horarios": _s(row.get("horarios")),
         "acceso_pmr": bool(row["acceso_pmr"]),
-        "telefono": str(int(row["tlfcontacto"])) if pd.notna(row.get("tlfcontacto")) and str(row.get("tlfcontacto")) != "nan" else "",
+        "telefono": str(int(row["tlfcontacto"]))
+        if pd.notna(row.get("tlfcontacto")) and str(row.get("tlfcontacto")) != "nan"
+        else "",
     }
 
 

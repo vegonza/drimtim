@@ -38,11 +38,29 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=edge"
-      - "traefik.http.routers.latidos-dev.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.latidos-dev.entrypoints=websecure"
-      - "traefik.http.routers.latidos-dev.tls=true"
-      - "traefik.http.routers.latidos-dev.priority=1"
       - "traefik.http.services.latidos-dev.loadbalancer.server.port=5173"
+      # Catch-all (localhost, IPs, self-signed): lowest priority
+      - "traefik.http.routers.latidos-default.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.latidos-default.entrypoints=websecure"
+      - "traefik.http.routers.latidos-default.tls=true"
+      - "traefik.http.routers.latidos-default.priority=1"
+      - "traefik.http.routers.latidos-default.service=latidos-dev"
+      # Trusted Let's Encrypt cert for the production hostname
+      - "traefik.http.routers.latidos-prod.rule=Host(`edint.cloverai.es`)"
+      - "traefik.http.routers.latidos-prod.entrypoints=websecure"
+      - "traefik.http.routers.latidos-prod.tls=true"
+      - "traefik.http.routers.latidos-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.latidos-prod.tls.domains[0].main=edint.cloverai.es"
+      - "traefik.http.routers.latidos-prod.priority=10"
+      - "traefik.http.routers.latidos-prod.service=latidos-dev"
+      # Also keep the nip.io hostname working
+      - "traefik.http.routers.latidos-nip.rule=Host(`158-179-221-83.nip.io`)"
+      - "traefik.http.routers.latidos-nip.entrypoints=websecure"
+      - "traefik.http.routers.latidos-nip.tls=true"
+      - "traefik.http.routers.latidos-nip.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.latidos-nip.tls.domains[0].main=158-179-221-83.nip.io"
+      - "traefik.http.routers.latidos-nip.priority=10"
+      - "traefik.http.routers.latidos-nip.service=latidos-dev"
 
 networks:
   default:

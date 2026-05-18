@@ -33,48 +33,48 @@
 }
 
 :root {
-  --radius: 0.875rem;
-  --background: oklch(0.99 0.005 20);
+  --radius: 1rem;
+  --background: oklch(0.99 0 0);
   --foreground: oklch(0.18 0.02 20);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.02 20);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.02 20);
-  --primary: oklch(0.58 0.22 25);
+  --primary: oklch(0.6 0.23 25);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.97 0.01 20);
-  --secondary-foreground: oklch(0.2 0.02 20);
-  --muted: oklch(0.96 0.01 20);
-  --muted-foreground: oklch(0.5 0.02 20);
-  --accent: oklch(0.95 0.02 25);
-  --accent-foreground: oklch(0.2 0.02 20);
-  --destructive: oklch(0.58 0.24 27);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.2 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.2 0 0);
+  --destructive: oklch(0.6 0.23 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.92 0.01 20);
-  --input: oklch(0.92 0.01 20);
-  --ring: oklch(0.58 0.22 25);
+  --border: oklch(0.93 0 0);
+  --input: oklch(0.93 0 0);
+  --ring: oklch(0.6 0.23 25);
 }
 
 .dark {
-  --background: oklch(0.15 0.02 20);
+  --background: oklch(0.13 0.005 20);
   --foreground: oklch(0.98 0 0);
-  --card: oklch(0.21 0.02 20);
+  --card: oklch(0.18 0.005 20);
   --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.21 0.02 20);
+  --popover: oklch(0.18 0.005 20);
   --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.65 0.23 25);
+  --primary: oklch(0.68 0.23 25);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.27 0.02 20);
+  --secondary: oklch(0.22 0 0);
   --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.27 0.02 20);
-  --muted-foreground: oklch(0.7 0.02 20);
-  --accent: oklch(0.3 0.05 25);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: oklch(0.7 0 0);
+  --accent: oklch(0.22 0 0);
   --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.65 0.24 27);
+  --destructive: oklch(0.68 0.23 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.27 0.02 20);
-  --input: oklch(0.27 0.02 20);
-  --ring: oklch(0.65 0.23 25);
+  --border: oklch(0.25 0 0);
+  --input: oklch(0.25 0 0);
+  --ring: oklch(0.68 0.23 25);
 }
 
 @layer base {
@@ -92,91 +92,118 @@
   }
 }
 
-/* ===== Latidos: heart + ECG animations ===== */
+/* ===== Latidos: pulse + ECG ===== */
 
-@keyframes latidos-pulse-ring {
+@keyframes latidos-ring {
   0% {
-    transform: scale(0.85);
-    opacity: 0.55;
-  }
-  80% {
-    transform: scale(1.6);
-    opacity: 0;
+    transform: scale(0.9);
+    opacity: 0.5;
   }
   100% {
-    transform: scale(1.6);
+    transform: scale(1.7);
     opacity: 0;
   }
 }
 
-@keyframes latidos-heartbeat {
+@keyframes latidos-beat {
   0%,
+  60%,
   100% {
     transform: scale(1);
   }
-  12% {
+  20% {
     transform: scale(1.08);
   }
-  24% {
-    transform: scale(0.98);
-  }
-  36% {
-    transform: scale(1.12);
-  }
-  48% {
-    transform: scale(1);
-  }
-}
-
-@keyframes latidos-ecg-draw {
-  0% {
-    stroke-dashoffset: 600;
-  }
-  60% {
-    stroke-dashoffset: 0;
-  }
-  100% {
-    stroke-dashoffset: -600;
+  40% {
+    transform: scale(1.02);
   }
 }
 
 .latidos-ring {
-  animation: latidos-pulse-ring 1.6s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+  animation: latidos-ring 1.6s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
 }
 
-.latidos-ring-delay {
+.latidos-ring-2 {
   animation-delay: 0.8s;
 }
 
-.latidos-heart {
-  animation: latidos-heartbeat 1.2s ease-in-out infinite;
+.latidos-beat {
+  animation: latidos-beat 1.2s ease-in-out infinite;
   transform-origin: center;
-}
-
-.latidos-ecg-path {
-  stroke-dasharray: 600;
-  stroke-dashoffset: 600;
-  animation: latidos-ecg-draw 2.4s linear infinite;
-}
-
-.latidos-stopped .latidos-ring,
-.latidos-stopped .latidos-heart,
-.latidos-stopped .latidos-ecg-path {
-  animation: none !important;
-}
-
-.latidos-stopped .latidos-ring {
-  opacity: 0;
-}
-
-.latidos-stopped .latidos-ecg-path {
-  stroke-dashoffset: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .latidos-ring,
-  .latidos-heart,
-  .latidos-ecg-path {
+  .latidos-beat {
     animation: none !important;
   }
+}
+
+/* ===== Map markers ===== */
+
+.latidos-you-dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: oklch(0.55 0.2 250);
+  box-shadow:
+    0 0 0 4px oklch(0.55 0.2 250 / 0.25),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.latidos-you-dot--low {
+  background: oklch(0.7 0.05 250);
+  opacity: 0.7;
+}
+
+.latidos-pick-pin {
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin-left: 3px;
+  border-radius: 9999px 9999px 9999px 0;
+  background: var(--primary);
+  transform: rotate(-45deg);
+  box-shadow: 0 6px 16px -4px var(--primary);
+  border: 3px solid white;
+}
+
+.latidos-aed-pin {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: white;
+  color: var(--foreground);
+  font: 600 12px/1 var(--font-sans);
+  border: 2px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.latidos-aed-pin.is-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  box-shadow: 0 6px 18px -4px var(--primary);
+}
+
+.latidos-zone-pin {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font: 600 12px/1 var(--font-sans);
+  border: 2px solid white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Leaflet container should respect rounded corners */
+.leaflet-container {
+  font: inherit;
+  background: var(--muted);
 }
