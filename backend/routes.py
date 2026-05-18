@@ -74,6 +74,7 @@ async def _ors_route(origin: tuple[float, float], dest: tuple[float, float]) -> 
         return None
 
 
+
 @router.get("/geojson")
 def geojson(
     lat: float | None = Query(None, ge=-90, le=90),

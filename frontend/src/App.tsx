@@ -38,24 +38,32 @@ type Defibrillator = {
   address: string | null
   available: boolean | null
   is24h: boolean
+  route: { type: string; coordinates: [number, number][] } | null
 }
 
-type ApiGeoProps = {
+type ApiNearestResult = {
   id: string
   descripcion?: string
   direccion?: string
   disponible_24h: boolean
-  available?: boolean
-  distance_m?: number
+  lat: number
+  lon: number
+  distance_m: number
+  one_way_s: number
+  round_trip_s: number
+  horarios?: string
+  acceso_pmr?: boolean
+  titularidad?: string
+  telefono?: string
+  route?: { type: string; coordinates: [number, number][] }
 }
-type ApiGeoFeature = {
-  type: 'Feature'
-  geometry: { type: 'Point'; coordinates: [number, number] }
-  properties: ApiGeoProps
-}
-type ApiGeoResponse = {
-  type: 'FeatureCollection'
-  features: ApiGeoFeature[]
+type ApiNearestResponse = {
+  origin: { lat: number; lon: number }
+  max_round_trip_s: number
+  speed_kmh: number
+  max_radius_m: number
+  count: number
+  results: ApiNearestResult[]
 }
 type Coords = { lat: number; lng: number; accuracy: number }
 type GateState = 'idle' | 'requesting' | 'granted' | 'denied' | 'unavailable' | 'unsupported'
@@ -79,6 +87,7 @@ export function App() {
   const [aeds, setAeds] = useState<Defibrillator[] | null>(null)
   const [aedError, setAedError] = useState<string | null>(null)
   const [pressed, setPressed] = useState(false)
+  const [selectedIdx, setSelectedIdx] = useState(0)
 
   const effectiveCoords = useMemo(() => override ?? coords, [override, coords])
 
@@ -87,29 +96,25 @@ export function App() {
     try {
       const now = new Date()
       const url =
-        `/api/geojson?lat=${lat}&lon=${lng}` +
-        `&hour=${now.getHours()}&minute=${now.getMinutes()}`
+        `/api/nearest?lat=${lat}&lon=${lng}` +
+        `&hour=${now.getHours()}&minute=${now.getMinutes()}&limit=8`
       const r = await fetch(url)
       if (!r.ok) throw new Error()
-      const data: ApiGeoResponse = await r.json()
-      const all = data.features.map((f) => {
-        const distance_m = f.properties.distance_m ?? 0
-        const walkSeconds = (distance_m / (6 * 1000)) * 3600 // 6 km/h
-        return {
-          id: f.properties.id,
-          lat: f.geometry.coordinates[1],
-          lng: f.geometry.coordinates[0],
-          distance_m,
-          one_way_s: walkSeconds,
-          round_trip_s: walkSeconds * 2,
-          name: f.properties.descripcion?.trim() || f.properties.id || null,
-          address: f.properties.direccion?.trim() || null,
-          available: f.properties.available ?? null,
-          is24h: f.properties.disponible_24h,
-        }
-      })
-      all.sort((a, b) => a.distance_m - b.distance_m)
-      setAeds(all.slice(0, 8))
+      const data: ApiNearestResponse = await r.json()
+      const all: Defibrillator[] = data.results.map((item) => ({
+        id: item.id,
+        lat: item.lat,
+        lng: item.lon,
+        distance_m: item.distance_m,
+        one_way_s: item.one_way_s,
+        round_trip_s: item.round_trip_s,
+        name: item.descripcion?.trim() || item.id || null,
+        address: item.direccion?.trim() || null,
+        available: true,
+        is24h: item.disponible_24h,
+        route: item.route ?? null,
+      }))
+      setAeds(all)
     } catch {
       setAedError('No se pudo cargar la información.')
     }
@@ -231,12 +236,14 @@ export function App() {
     return (
       <div className="fixed inset-0 flex flex-col bg-background text-foreground antialiased">
         <div className="relative flex-1">
-          <MapView coords={effectiveCoords} aeds={aeds} fill />
+          <MapView coords={effectiveCoords} aeds={aeds} selectedIdx={selectedIdx} fill />
         </div>
         <div className="max-h-[42vh] overflow-y-auto px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <List
             aeds={aeds}
             error={aedError}
+            selectedIdx={selectedIdx}
+            onSelect={setSelectedIdx}
             onRetry={() =>
               effectiveCoords && loadAeds(effectiveCoords.lat, effectiveCoords.lng)
             }
@@ -482,17 +489,18 @@ function MapView({
   coords,
   aeds,
   zones,
+  selectedIdx = 0,
   fill = false,
 }: {
   coords: Coords | null
   aeds: Defibrillator[] | null
   zones?: { id: string; name: string; lat: number; lng: number; radius_m: number }[]
+  selectedIdx?: number
   fill?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<L.Map | null>(null)
   const layerRef = useRef<L.LayerGroup | null>(null)
-  const routeAbortRef = useRef<AbortController | null>(null)
 
   const initialCenterRef = useRef<Coords | null>(null)
 
@@ -521,7 +529,6 @@ function MapView({
     const layer = layerRef.current
     if (!map || !layer) return
     layer.clearLayers()
-    routeAbortRef.current?.abort()
 
     if (!coords) return
 
@@ -574,7 +581,7 @@ function MapView({
       aeds.forEach((a, i) => {
         const icon = L.divIcon({
           className: 'latidos-aed',
-          html: `<span class="latidos-aed-pin${i === 0 ? ' is-primary' : ''}">${i + 1}</span>`,
+          html: `<span class="latidos-aed-pin${i === selectedIdx ? ' is-primary' : ''}">${i + 1}</span>`,
           iconSize: [28, 28],
           iconAnchor: [14, 14],
         })
@@ -582,37 +589,17 @@ function MapView({
         points.push([a.lat, a.lng])
       })
 
-      const closest = aeds[0]
-      const ctrl = new AbortController()
-      routeAbortRef.current = ctrl
-      const url = `https://router.project-osrm.org/route/v1/foot/${coords.lng},${coords.lat};${closest.lng},${closest.lat}?overview=full&geometries=geojson`
-      fetch(url, { signal: ctrl.signal })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          const coordsLine: [number, number][] | undefined =
-            data?.routes?.[0]?.geometry?.coordinates
-          if (!coordsLine) {
-            L.polyline(
-              [
-                [coords.lat, coords.lng],
-                [closest.lat, closest.lng],
-              ],
-              { color: 'var(--primary)', weight: 4, opacity: 0.7, dashArray: '6 8' },
-            ).addTo(layer)
-            return
-          }
-          const latlngs = coordsLine.map(([lng, lat]) => [lat, lng]) as L.LatLngExpression[]
-          L.polyline(latlngs, { color: 'var(--primary)', weight: 5, opacity: 0.85 }).addTo(layer)
-        })
-        .catch(() => {
-          L.polyline(
-            [
-              [coords.lat, coords.lng],
-              [closest.lat, closest.lng],
-            ],
-            { color: 'var(--primary)', weight: 4, opacity: 0.7, dashArray: '6 8' },
-          ).addTo(layer)
-        })
+      const selected = aeds[selectedIdx] ?? aeds[0]
+      L.polyline(
+        [[coords.lat, coords.lng], [selected.lat, selected.lng]],
+        { color: 'var(--primary)', weight: 2, opacity: 0.4, dashArray: '6 8' },
+      ).addTo(layer)
+      if (selected.route?.coordinates) {
+        const latlngs = selected.route.coordinates.map(
+          ([lng, lat]) => [lat, lng] as L.LatLngExpression,
+        )
+        L.polyline(latlngs, { color: 'var(--primary)', weight: 5, opacity: 0.85 }).addTo(layer)
+      }
 
       map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 17 })
     } else if (points.length > 1) {
@@ -620,7 +607,7 @@ function MapView({
     } else {
       map.setView([coords.lat, coords.lng], 14)
     }
-  }, [coords, aeds, zones])
+  }, [coords, aeds, zones, selectedIdx])
 
   useEffect(() => {
     const map = mapRef.current
@@ -651,10 +638,14 @@ function MapView({
 function List({
   aeds,
   error,
+  selectedIdx = 0,
+  onSelect,
   onRetry,
 }: {
   aeds: Defibrillator[] | null
   error: string | null
+  selectedIdx?: number
+  onSelect?: (idx: number) => void
   onRetry: () => void
 }) {
   if (error) {
@@ -695,15 +686,16 @@ function List({
       {aeds.slice(0, 5).map((a, i) => (
         <li
           key={a.id}
+          onClick={() => onSelect?.(i)}
           className={cn(
-            'flex items-center gap-3 px-4 py-3',
-            i === 0 && 'bg-primary/5',
+            'flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors',
+            i === selectedIdx ? 'bg-primary/5' : 'hover:bg-muted/50',
           )}
         >
           <span
             className={cn(
               'grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold',
-              i === 0
+              i === selectedIdx
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-foreground',
             )}
